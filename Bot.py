@@ -20,8 +20,6 @@ bot = telebot.TeleBot(os.environ['TELEGRAM_TOKEN'])
 # язык бота
 global LANGUAGE
 LANGUAGE = 'Inglish'
-Task #1: Добавление асинхронности в функции threading_load и animation_bar
-ajfdalk;;kf
 # кнопки для навигации по боту
 buttonsList = defaultdict(str, {
     "correct_date_button": {"Date settings": ['Current date', 'Change the date']},
