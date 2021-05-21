@@ -16,7 +16,9 @@ from date_formating import regex_date  # функция, определяюща�
 
 bot = telebot.TeleBot(os.environ['TELEGRAM_TOKEN'])
 
-
+lkjaksldf
+adfja;df
+lkadjsfla;klf
 # язык бота
 global LANGUAGE
 LANGUAGE = 'Inglish'
