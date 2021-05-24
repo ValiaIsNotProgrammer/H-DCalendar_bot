@@ -5,7 +5,8 @@ import requests
 from googletrans import Translator
 from bs4 import BeautifulSoup
 from date_formating import regex_date
-Task #1: Добавление асинхронности в функции threading_load и animation_bar
+
+# TODO: добавление одного внятного парсера
 def language_date(kakoy_prazdice=False, old_date=None):
     if not kakoy_prazdice:
         dt = datetime.today().ctime().split()[1:3]

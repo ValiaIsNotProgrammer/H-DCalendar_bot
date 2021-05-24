@@ -1,27 +1,26 @@
-import telebot
-import json
-from telebot import types
-import ast
-from datetime import datetime
-from threading import Thread
-import asyncio
 import re
 import os
+import ast
+import sys
 import time
+import inspect
 from collections import defaultdict
+
+import telebot
 from telebot import types
+from threading import Thread
+from datetime import datetime
 from googletrans import Translator
+
 from main import get_holidays  # функция, парсиющая данные в зависимости от даты
 from date_formating import regex_date  # функция, определяющая дату, форматируя ее
 
 bot = telebot.TeleBot(os.environ['TELEGRAM_TOKEN'])
 
-lkjaksldf
-adfja;df
-lkadjsfla;klf
 # язык бота
 global LANGUAGE
 LANGUAGE = 'Inglish'
+
 # кнопки для навигации по боту
 buttonsList = defaultdict(str, {
     "correct_date_button": {"Date settings": ['Current date', 'Change the date']},
@@ -35,7 +34,7 @@ def key_from_dict(value):
     key = str([x for x in value.keys()]).strip("['']")
     return key
 
-
+# TODO: обработать переводчик, добавив альтернативный парсер или стороннию библиотеку
 # переводчик, используемый в основном для текста сообщений
 def translator(text):
     translator = lambda tx: Translator().translate(tx, dest='ru').text.strip("'[]'")
@@ -68,6 +67,10 @@ def keyboard_translator(key):
         return None
 
 
+# TODO:
+#  1) добавить кнопки для кастомизации напоминаний;
+#  2) добавить кнопку возращения в InlineKeyboard;
+#  3) добавить кнопку пользовательского ввода даты и надписи к ней;
 # функция для создания кнопок навигации
 def makeKeyboard(text=None, orig_req=None, message=None, finish=False):
     global LANGUAGE
@@ -80,6 +83,11 @@ def makeKeyboard(text=None, orig_req=None, message=None, finish=False):
     """
 
     def animation_bar(message):
+        # если функция вызвана не из "threading_load"(run), то исключение
+        assert inspect.stack()[1][3] == "run"
+        print('started')
+
+
         CLOCKS = {
             "🕐": "One O’Clock", "🕑": "Two O’Clock", "🕒": "Three O’Clock",
             "🕓": "Four O’Clock", "🕔": "Five O’Clock", "🕕": "Six O’Clock",
@@ -94,46 +102,34 @@ def makeKeyboard(text=None, orig_req=None, message=None, finish=False):
                     print('whaaa?')
                     return bot.delete_message(
                         chat_id=CHAT_ID,
-                        message_id=message.message_id + 1
+                        message_id=message.message_id + 2
                     )
                 bot.edit_message_text(chat_id=CHAT_ID,
-                                      message_id=message.message_id + 1,
+                                      message_id=message.message_id + 2,
                                       text=clock)
                 time.sleep(0.1)
 
 
-    def threading_load(thread, over):
+    def threading_load(thread_func, main_func, **kwargs):
+
         global OVER
         OVER = None
-        for tp in (thread, over):
-            assert type(tp) == tuple
-            assert type(tp[1]) == dict
-        thread_func = thread[0]
-        over_func = over[0]
-        over_args = dict()
-        thread_args = []
 
-        for key, value in over[1].items():
-            if type(value) == dict:
-                for k,v in value.items():
-                    key_arg = key
-                    over_args_func = (k,v)
+        thread_args, main_args = [], []
+        for key in kwargs:
+            if key == thread_func.__name__:
+                thread_args.append(kwargs[key])
             else:
-                over_args[key] = value
+                main_args.append(kwargs[key])
 
-        for value in thread[1].values():
-            thread_args.append(value)
-        thread_args = tuple(thread_args)
-
-
-        print(over_func.__code__.co_varnames)
-        th = Thread(target=thread_func,
-                    args=(thread_args))
-
+        th = Thread(target=thread_func, args=thread_args)
         th.start()
-        OVER = over_func(chat_id=CHAT_ID, text=get_holidays(LANGUAGE)) # key_arg = over_args_func[0](over_args_func[1])
-
-        th.join()
+        print('присовение переменной')
+        # OVER = over_func()
+        # print('вызов переменной')
+        # OVER
+        # th.join()
+        # print('конец')
 
 
 
@@ -236,19 +232,12 @@ def makeKeyboard(text=None, orig_req=None, message=None, finish=False):
 
     elif text == 'Search by current date_button':
         answer = 'The request is being executed...'
-        # th = Thread(target=animation_bar, args=(translator(answer)))
-        # th.start()
-        # send_message = bot.send_message(chat_id=CHAT_ID,
-        #                                 text=get_holidays(lang=LANGUAGE))
-        # send_message
-        # th.join()
-        args_thread = {'message': message,}
-        args_over = {'chat_id': CHAT_ID, 'text': {get_holidays : LANGUAGE}}
-        # dump = json.load(args_over)
-        # print(dump)
-        threading_load(thread=(animation_bar, args_thread),
-                       over=(bot.send_message, args_over)
-                       )
+        kwargs = {'animation_bar': message, "get_holidays": LANGUAGE}
+        threading_load(animation_bar, answer,
+                       **kwargs)
+
+
+
 
 
         # bot.send_message(chat_id=CHAT_ID,
@@ -277,6 +266,7 @@ def process_date_step(message):
                      parse_mode='HTML')
 
 
+# TODO: добавление комманд боту через BotFather
 # главнное меню/вступительное окно навигации
 @bot.message_handler(commands=['start'])
 def handle_command_adminwindow(message):
@@ -319,7 +309,7 @@ def handle_message_from_callback(message, reply_markup_text=None, reply_markup_r
 
 
 
-
+# TODO: добавить корректную обработку всех callback'ов и кнопок навигации
 # функция описывающая поведения ответа кнопок навигации
 @bot.callback_query_handler(func=lambda call: True)
 def handle_query(call):
