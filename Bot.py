@@ -1,18 +1,15 @@
 import re
 import os
-import ast
-import sys
 import time
 import inspect
-from collections import defaultdict
 
 import telebot
 from telebot import types
 from threading import Thread
 from datetime import datetime
-from googletrans import Translator
+from translate import Translator
 
-from main import get_holidays  # функция, парсиющая данные в зависимости от даты
+from parser import get_holiday  # функция, парсиющая данные в зависимости от даты
 from date_formating import regex_date  # функция, определяющая дату, форматируя ее
 
 bot = telebot.TeleBot(os.environ['TELEGRAM_TOKEN'])
@@ -22,26 +19,37 @@ global LANGUAGE
 LANGUAGE = 'Inglish'
 
 # кнопки для навигации по боту
-buttonsList = defaultdict(str, {
-    "correct_date_button": {"Date settings": ['Current date', 'Change the date']},
-    "language_button": {'Language': ['Русский', 'Inglish']},
-    "search_button": {"Search": ['Search by current date', 'Search by the specified date']},
-})  # многоключевой обьект dict
-markup_finish = ["Back to menu", "Stop"]
+buttonsList = {
+    "profile_key":
+        {"Profile":
+             ["My_dates", "Notifications",]},
+    "settings_date_keu":
+        {"Date settings":
+             ['Set the current date', 'Change the date']},
+    "language_key":
+        {'Language':
+             ['Русский', 'Inglish']},
+    "search_key":
+        {"Search":
+             ['Search by current date', 'Search by the specified date']},
+    "notificion_key":
+        {"Notification":
+            ['Disable Notification', 'Notification time']}
+}  # многоключевой обьект dict
+markup_finish_list = ["Back to menu", "Stop"]
 
-# возращает главный ключ по типу str
+
 def key_from_dict(value):
     key = str([x for x in value.keys()]).strip("['']")
     return key
 
 # TODO: обработать переводчик, добавив альтернативный парсер или стороннию библиотеку
-# переводчик, используемый в основном для текста сообщений
 def translator(text):
-    translator = lambda tx: Translator().translate(tx, dest='ru').text.strip("'[]'")
-    return translator(text) if LANGUAGE == 'Русский' else text
+    translator = Translator(to_lang="ru")
+    return translator.translate(text) if LANGUAGE == 'Русский' else text
 
 
-# функция определяющая текст сообщения от основных кнопок
+
 def keyboard_translator(key):
     """
     Функция опредялет текст сообщения в зависимости от ключей buttonList
@@ -71,21 +79,25 @@ def keyboard_translator(key):
 #  1) добавить кнопки для кастомизации напоминаний;
 #  2) добавить кнопку возращения в InlineKeyboard;
 #  3) добавить кнопку пользовательского ввода даты и надписи к ней;
-# функция для создания кнопок навигации
-def makeKeyboard(text=None, orig_req=None, message=None, finish=False):
-    global LANGUAGE
+#  4) изменить архитектуру запросов в более удобную и абстрактную
+
+def makeKeyboard(text=None, past_request=None, message=None, finish=False):
+
     """
     Построение кастомной клавиатуры
-    :param orig_req: главный ключ словаря кнопок, в основном используется если > 1 ключа
-    :param message: сообщение с его характеристиками
+    :param past_request: главный ключ словаря кнопок, в основном используется если > 1 ключа
+    :param text: текст сообщения
     :param finish: определяет, включаеть завершающее меню или нет
     :return: InlineKeyBoard (встроенную в сообщение кастомную клавиатуру)
     """
+    global LANGUAGE
+    markup = types.InlineKeyboardMarkup()
+
+
 
     def animation_bar(message):
         # если функция вызвана не из "threading_load"(run), то исключение
         assert inspect.stack()[1][3] == "run"
-        print('started')
 
 
         CLOCKS = {
@@ -99,74 +111,58 @@ def makeKeyboard(text=None, orig_req=None, message=None, finish=False):
         while True:
             for clock in CLOCKS:
                 if OVER:
-                    print('whaaa?')
                     return bot.delete_message(
                         chat_id=CHAT_ID,
-                        message_id=message.message_id + 2
+                        message_id=message.message_id + 1
                     )
                 bot.edit_message_text(chat_id=CHAT_ID,
-                                      message_id=message.message_id + 2,
+                                      message_id=message.message_id + 1,
                                       text=clock)
                 time.sleep(0.1)
 
 
     def threading_load(thread_func, main_func, **kwargs):
 
-        global OVER
-        OVER = None
+            global OVER
+            OVER = None
 
-        thread_args, main_args = [], []
-        for key in kwargs:
-            if key == thread_func.__name__:
-                thread_args.append(kwargs[key])
-            else:
-                main_args.append(kwargs[key])
+            thread_args, main_args = [], {}
+            for key in kwargs:
+                if key == thread_func.__name__:
+                    thread_args.append(kwargs[key])
 
-        th = Thread(target=thread_func, args=thread_args)
-        th.start()
-        print('присовение переменной')
-        # OVER = over_func()
-        # print('вызов переменной')
-        # OVER
-        # th.join()
-        # print('конец')
+            th = Thread(target=thread_func, args=thread_args)
+            th.start()
+            time.sleep(1)
+            OVER = eval(main_func)
+            th.join()
 
 
+    def process_date_step(message):
+        format_date = regex_date(message.text)
+        bot.send_message(chat_id=CHAT_ID,
+                         text=get_holiday(format_date)
+                         )
+        answer = "What\'s next?"
+        bot.send_message(chat_id=CHAT_ID,
+                         text=translator(answer),
+                         reply_markup=makeKeyboard(finish=True),
+                         parse_mode='HTML')
 
 
-    markup = types.InlineKeyboardMarkup()
 
-    # если опц. агрумента нет, то включается главное меню
-    if (not text) and (not finish):
-        # итерация по кнопкам навигации, для надписей кнопок и их callback'ов
-        for key, value in buttonsList.items():
-            #  если значение ключа словарь, то берем только ключ
-            if type(value) == dict:
-                value_key = key_from_dict(value)
-
-                markup.add(types.InlineKeyboardButton(text=translator(value_key),
-                                                      callback_data=key))
-            else:
-                markup.add(types.InlineKeyboardButton(text=translator(value),
-                                                      callback_data=key))
-        return markup  # возращаем экземпляр InlineKeyboardMarkup()
-
-
-    elif finish:
+    if finish:
         def markup_finish():
             """
             Настройка заверщаюего меню
             :return: InlineKeyBoard (встроенную в сообщение кастомную клавиатуру)
             """
-            global markup_finish
-            markup_finish = ["Back to menu", "Finish"]
-            for v in markup_finish:
-                markup.add(types.InlineKeyboardButton(text=translator(v) if LANGUAGE == 'Русский' else v,
+            for v in markup_finish_list:
+                markup.add(types.InlineKeyboardButton(text=translator(v),
                                                       callback_data=v + '_button'))
             return markup
 
         if text == 'Back to menu_button':
-            print(text)
             answer = "I\'m coming back..."
             # бот отправляет ответ-ожидание чтобы вернутся в главное меню
             bot.send_message(chat_id=CHAT_ID,
@@ -174,7 +170,7 @@ def makeKeyboard(text=None, orig_req=None, message=None, finish=False):
             time.sleep(2)
             # бот удаляет ответ-ожидание и вместо него отправляет главное меню
             bot.delete_message(chat_id=CHAT_ID,
-                               message_id=message.message_id + 1,  # т.к. message_id уже удаленно,
+                               message_id=text.message_id + 1,  # т.к. message_id уже удаленно,
                                # то нужно добавить к id значение, равно кол-ву сообщенией,
                                # отправленных после удаления
                                )
@@ -191,8 +187,28 @@ def makeKeyboard(text=None, orig_req=None, message=None, finish=False):
             return markup_finish()
 
 
-    elif text == 'Language':
-        for v in buttonsList[orig_req][text]:
+    # если опц. агрумента нет, то включается главное меню
+    if (text in buttonsList.keys() or (not text) or text == "Back to menu_button"):
+        # итерация по кнопкам навигации, для надписей кнопок и их callback'ов
+        for key, value in buttonsList.items():
+            #  если значение ключа словарь, то берем только ключ
+            if type(value) == dict:
+                value_key = key_from_dict(value)
+                markup.add(types.InlineKeyboardButton(text=translator(value_key),
+                                                      callback_data=key))
+
+            else:
+                markup.add(types.InlineKeyboardButton(text=translator(value),
+                                                      callback_data=key))
+        return markup  # возращаем экземпляр InlineKeyboardMarkup()
+
+
+
+    markup.add(types.InlineKeyboardButton(text=translator('↩ Back ↩'),
+                                          callback_data='back'))
+
+    if text == 'Language':
+        for v in buttonsList[past_request][text]:
             markup.add(types.InlineKeyboardButton(text=v,
                                                   callback_data=v + '_button'))
         return markup
@@ -202,81 +218,82 @@ def makeKeyboard(text=None, orig_req=None, message=None, finish=False):
             LANGUAGE = 'Русский'
         else:
             LANGUAGE = 'Inglish'
-        answer = 'Change language...'
-        animation_bar(message, translator(answer))
-        answer = "Choose the desired setting"
 
-        bot.delete_message(chat_id=CHAT_ID, message_id=message.message_id + 1)
-        return bot.send_message(chat_id=CHAT_ID, text=translator(answer),
-                                reply_markup=makeKeyboard())
+        kwargs = {"animation_bar": text}
+        threading_load(animation_bar, "bot.send_message(chat_id=CHAT_ID, " \
+                                      "text=translator('Language changed successfully'), " \
+                                      "reply_markup=makeKeyboard())",
+                       **kwargs)
 
-    elif text == 'Date settings':
-        for v in buttonsList[orig_req][text]:
+
+
+    if text == 'Date settings':
+        for v in buttonsList[past_request][text]:
             markup.add(types.InlineKeyboardButton(text=translator(v) if LANGUAGE == 'Русский' else v,
                                                   callback_data=v + '_button'))
         return markup
 
-    elif text == 'Current date_button':
+    elif text == 'Set the current date_button':
+        # for v in buttonsList[orig_req][text]:
+        #     markup.add(types.InlineKeyboardButton(text=v,
+        #                                           callback_data=v + '_button'))
         year = '\a' + datetime.today().ctime().split()[-1]
+        current_date = " ".join(language_date()) + year
+        answer = "Today is {}. I couldn't set the date on your device. " \
+                 "Either set the default date, or set your own".format(current_date)
         bot.send_message(chat_id=CHAT_ID,
-                         text=" ".join(language_date()) + year if LANGUAGE == 'Русский' \
-                             else " ".join(datetime.today().ctime().split()[1:3]) \
-                                  + year,
-                         parse_mode='HTML')
+                         text=answer)
+        # return markup
 
-    elif text == 'Search':
-        for v in buttonsList[orig_req][text]:
+    elif text == 'Change the date':
+        pass
+
+
+
+    if text == 'Search':
+        for v in buttonsList[past_request][text]:
             markup.add(types.InlineKeyboardButton(text=translator(v) if LANGUAGE == 'Русский' else v,
                                                   callback_data=v + '_button'))
         return markup
 
     elif text == 'Search by current date_button':
-        answer = 'The request is being executed...'
-        kwargs = {'animation_bar': message, "get_holidays": LANGUAGE}
-        threading_load(animation_bar, answer,
+        # answer = 'The request is being executed...'
+        kwargs = {'animation_bar': message, "send_message":
+                                            {'chat_id': CHAT_ID,
+                                             'text': "translator(get_holiday(LANGUAGE)"}}
+        threading_load(animation_bar, "bot.send_message(chat_id=CHAT_ID,"
+                                      "                 text=get_holiday())",
                        **kwargs)
 
-
-
-
-
-        # bot.send_message(chat_id=CHAT_ID,
-        #                  text=keyboard_translator(text.split('_')[0]),
-        #                  reply_markup=makeKeyboard(finish=True),
-        #                  parse_mode='HTML')
-
+        answer = "What\'s next?"
+        bot.send_message(chat_id=CHAT_ID,
+                         text=translator(answer),
+                         reply_markup=makeKeyboard(finish=True))
 
     elif text == 'Search by the specified date_button':
         answer = 'Enter the month and date in a format that is convenient for you'
         bot.send_message(chat_id=CHAT_ID,
-                         text=translator(answer) if LANGUAGE == 'Русский' else answer)
-        bot.register_next_step_handler(message, process_date_step)
+                         text=translator(answer))
+        bot.register_next_step_handler(text, process_date_step)
 
 
-def process_date_step(message):
-    format_date = regex_date(message.text)
-    bot.send_message(chat_id=CHAT_ID,
-                     text=get_holidays(lang=LANGUAGE,
-                                       date=format_date)
-                     )
-    answer = "What\'s next?"
-    bot.send_message(chat_id=CHAT_ID,
-                     text=translator(answer),
-                     reply_markup=makeKeyboard(finish=True),
-                     parse_mode='HTML')
 
 
-# TODO: добавление комманд боту через BotFather
+
+# TODO: добавление команд боту через BotFather
 # главнное меню/вступительное окно навигации
 @bot.message_handler(commands=['start'])
 def handle_command_adminwindow(message):
     global CHAT_ID
     CHAT_ID = message.chat.id
+    answer = "Hi, again. This is the main menu where you can view your profile, " \
+             "configure notifications, set the desired dates, " \
+             "or simply use the date search to find out what holiday it is today"
     bot.send_message(chat_id=CHAT_ID,
-                     text="Выбери нужную настройку" if LANGUAGE == 'Русский'
-                     else "Choose the desired setting",
+                     text=translator(answer),
                      reply_markup=makeKeyboard(),
                      parse_mode='HTML')
+
 
 
 # функция для ответа на нажатие кнопок навигации
@@ -292,7 +309,7 @@ def handle_message_from_callback(message, reply_markup_text=None, reply_markup_r
             bot.send_message(chat_id=CHAT_ID,
                              text=keyboard_translator(reply_markup_text),
                              reply_markup=makeKeyboard(text=reply_markup_text,
-                                                       orig_req=reply_markup_req,
+                                                       past_request=reply_markup_req,
                                                        message=message),
                              parse_mode='HTML')
 
@@ -300,64 +317,90 @@ def handle_message_from_callback(message, reply_markup_text=None, reply_markup_r
             bot.send_message(chat_id=CHAT_ID,
                              text=keyboard_translator(answer),
                              reply_markup=makeKeyboard(text=reply_markup_text,
-                                                       orig_req=reply_markup_req,
+                                                       past_request=reply_markup_req,
                                                        message=message),
                              parse_mode='HTML')
     else:   # если ответ есть в листе завершающих кнопок, то включается завершающее меню
-       makeKeyboard(text=reply_markup_text,
-                    message=message)
+        makeKeyboard(text=reply_markup_text, message=message)
 
+
+def get_back(call=None, back=False):
+    global back_key
+    if not back:
+        data = call.data
+        back_key = None
+        for k1, v1 in buttonsList.items():
+            if data in v1:
+                back_key = k1
+                break
+            elif type(v1) == dict:
+                for k2, v2 in v1.items():
+                    if data in v2:
+                        back_key = k2
+                        break
+        return back_key
+
+    else:
+        print('возращаюсь по ключю', back_key)
+        answer = "What do you want to do now"
+        bot.delete_message(chat_id=CHAT_ID,
+                           message_id=call.message.id)
+        return bot.send_message(text=translator(answer),
+                                chat_id=CHAT_ID,
+                                reply_markup=makeKeyboard(text=back_key))
 
 
 # TODO: добавить корректную обработку всех callback'ов и кнопок навигации
-# функция описывающая поведения ответа кнопок навигации
 @bot.callback_query_handler(func=lambda call: True)
 def handle_query(call):
-    if type(buttonsList[call.data]) == dict:
-        answer = key_from_dict(buttonsList[call.data])
-    else:
-        if buttonsList[call.data]:
-            answer = buttonsList[call.data]
+    try:
+        if type(buttonsList[call.data]) == dict:
+            answer = key_from_dict(buttonsList[call.data])
         else:
+            answer = buttonsList[call.data]
+    except KeyError:
             answer = call.data
 
-    bot.delete_message(chat_id=CHAT_ID,
-                       message_id=call.message.message_id,
-                       )
+    if call.data == 'back':
+        get_back(call=call, back=True)
 
-    handle_message_from_callback(call.message, reply_markup_text=answer,
-                                 reply_markup_req=call.data)
+    else:
+        bot.delete_message(chat_id=CHAT_ID,
+                           message_id=call.message.message_id,
+                           )
+        handle_message_from_callback(call.message, reply_markup_text=answer,
+                                     reply_markup_req=call.data)
 
 
 def language_date():
-    # if lang == 'ru':
     dt = datetime.today().ctime().split()[1:3]
-    if 'Jan' in dt:
-        return dt[1], 'января'
-    elif 'Feb' in dt:
-        return dt[1], 'февраля'
-    elif 'Mar' in dt:
-        return dt[1], 'марта'
-    elif 'Apr' in dt:
-        return dt[1], 'апреля'
-    elif 'May' in dt:
-        return dt[1], 'мая'
-    elif 'Jun' in dt:
-        return dt[1], 'июня'
-    elif 'Jul' in dt:
-        return dt[1], 'июля'
-    elif 'Aug' in dt:
-        return dt[1], 'августа'
-    elif 'Sep' in dt:
-        return dt[1], 'сентября'
-    elif 'Oct' in dt:
-        return dt[1], 'октября'
-    elif 'Nov' in dt:
-        return dt[1], 'ноября'
-    elif 'Dec' in dt:
-        return dt[1], 'декабря'
-    else:
-        print('Uncorrect date')
+    if LANGUAGE == 'Русский':
+        if 'Jan' in dt:
+            return dt[1], 'января'
+        elif 'Feb' in dt:
+            return dt[1], 'февраля'
+        elif 'Mar' in dt:
+            return dt[1], 'марта'
+        elif 'Apr' in dt:
+            return dt[1], 'апреля'
+        elif 'May' in dt:
+            return dt[1], 'мая'
+        elif 'Jun' in dt:
+            return dt[1], 'июня'
+        elif 'Jul' in dt:
+            return dt[1], 'июля'
+        elif 'Aug' in dt:
+            return dt[1], 'августа'
+        elif 'Sep' in dt:
+            return dt[1], 'сентября'
+        elif 'Oct' in dt:
+            return dt[1], 'октября'
+        elif 'Nov' in dt:
+            return dt[1], 'ноября'
+        elif 'Dec' in dt:
+            return dt[1], 'декабря'
+    return dt[1], dt[0]
+
 
 
 while True:
