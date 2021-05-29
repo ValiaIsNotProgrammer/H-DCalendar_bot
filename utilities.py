@@ -1,0 +1,68 @@
+import re
+import requests
+from bs4 import BeautifulSoup
+from translate import Translator
+import random
+
+def get_emoji(text):
+
+
+    def translator(text):
+        translator = Translator(from_lang="ru", to_lang="en")
+        return translator.translate(text)
+
+
+    # def get_emoji_from_emojipedia(text):
+    #     translated_text = translator(text)
+    #     print(translated_text)
+    #     url = "https://emojipedia.org/search/?q={}".format(translated_text)
+    #     r = requests.get(url)
+    #     soup = BeautifulSoup(r.text, 'lxml')
+    #     tag = soup.find('ol', class_="search-results")
+    #     result = tag.find('span', class_='emoji').text
+    #     if result == "😞":
+    #         return text
+    #     return f"{result} {text}"
+
+
+
+    if re.findall('(Международные)', text):
+        return "🌍{}".format(text)
+
+    elif re.findall('(Национальные)', text):
+        return "🇺🇳{}".format(text)
+
+    elif re.findall('(Религиозные)', text):
+        return "✝️{}".format(text)
+
+    elif re.findall('(Именины)', text):
+        return "⚕️{}".format(text)
+
+    else:
+        return text
+        # return get_emoji_from_emojipedia(text)
+
+
+def get_random_text(part):
+    """
+    Перебирает из определенных листов одну случайную фразу, которая зависит от part
+    :list of parts: greeting, farewell, next,
+    :param part: часть/структура сообщения, в которую нужно передавать разные значения
+    :return: одну случайную фразу под определенную часть предложения
+    """
+    if part == 'greeting':
+        list_of_greeting = ["categorically welcome", "hello", "welcome", "welcome back",
+                         "good to see you again", "you again", "and again hello", "hey",
+                         "how are you", "aloha", "how are you doing", "how are things going",
+                         "how are you getting on", "howdy", "hiya", "g'day", "oh, you here",
+                            ]
+        return random.choice(list_of_greeting).capitalize()
+    elif part == 'farewell':
+        list_of_farewell = ["goodbye", "see you later", "bye", "all the best",
+                            "see you soon", "aloha", "happy holidays", "good luck",
+                            "have a nice day", "so I don't want to say goodbye",
+                            'time to say "goodbye"', "aloha", "bye bye"]
+        return random.choice(list_of_farewell)
+
+if __name__ == '__main__':
+    pass

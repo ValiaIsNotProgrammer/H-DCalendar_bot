@@ -11,18 +11,21 @@ from translate import Translator
 
 from parser import get_holiday  # функция, парсиющая данные в зависимости от даты
 from date_formating import regex_date  # функция, определяющая дату, форматируя ее
+from utilities import get_random_text
 
 bot = telebot.TeleBot(os.environ['TELEGRAM_TOKEN'])
 
 # язык бота
 global LANGUAGE
 LANGUAGE = 'Inglish'
+# TODO: добавлять данные в базу данных (user_name, user_id, date, name)
+USER_DATES = {"19 06": "Мое День Рождение", "25 01":  "Праздник 1", "01 01": "Новый Год"}
 
 # кнопки для навигации по боту
 buttonsList = {
     "profile_key":
         {"Profile":
-             ["My_dates", "Notifications",]},
+             ["My dates", "Notifications",]},
     "settings_date_keu":
         {"Date settings":
              ['Set the current date', 'Change the date']},
@@ -32,9 +35,6 @@ buttonsList = {
     "search_key":
         {"Search":
              ['Search by current date', 'Search by the specified date']},
-    "notificion_key":
-        {"Notification":
-            ['Disable Notification', 'Notification time']}
 }  # многоключевой обьект dict
 markup_finish_list = ["Back to menu", "Stop"]
 
@@ -48,8 +48,6 @@ def translator(text):
     translator = Translator(to_lang="ru")
     return translator.translate(text) if LANGUAGE == 'Русский' else text
 
-
-
 def keyboard_translator(key):
     """
     Функция опредялет текст сообщения в зависимости от ключей buttonList
@@ -57,6 +55,69 @@ def keyboard_translator(key):
     :param key: сам ключ
     :return:
     """
+
+    def format_dictonary(dictonary):
+        text = ""
+        for id, (key, value) in enumerate(dictonary.items()):
+            text += "{}. {} - {}\n" \
+                .format(str(id + 1), ' '.join(regex_date(key).split('_')), value)
+        return text
+
+
+    if key == "Profile":
+        answer = "Your profile information. " \
+                 "Here you can view the notification settings and edit the date's"
+        return translator(answer)
+
+    elif key == "My dates_button":
+        if USER_DATES:
+            answer = "List of your dates:\n" \
+                     "------------------------------------------\n{}" \
+                     "-----------------------------------------\n" \
+                     "You can add, edit, delete the dates you want by simply clicking " \
+                     "on the corresponding button and specifying the date number."\
+                      .format(format_dictonary(USER_DATES))
+        else:
+            answer = "You haven't added any of your dates yet"
+        return translator(answer)
+
+    elif (key == "Add first date!_button") or \
+         (key == "Try again_add_button") or (key == "Add_button"):
+            answer = "Enter the desired month and date " \
+                     "in a format that is convenient for you"
+            return translator(answer)
+
+    elif key == 'Edit_button':
+        answer = "Click on the date you want to edit"
+        return translator(answer)
+
+    elif (key.split('_')[0] in USER_DATES.keys()) and (key.split('_')[0]+"edit" == key):
+        answer = "What do you want to change?"
+        return translator(answer)
+
+    elif key == 'Date_edit_button':
+        answer = "Enter a new month and date value"
+        return translator(answer)
+
+    elif key == 'Name_edit_button':
+        answer = "Enter a new name"
+        return translator(answer)
+
+    elif key == "Delete_button":
+        answer = "Select the date you want to delete"
+        return translator(answer)
+
+    elif (key.split('_')[0] in USER_DATES.keys()) and (key.split('_')[0]+"_delete_button" == key):
+        key = key.split("_")[0]
+        answer = f"The name {USER_DATES[key]} with date " \
+                 f"{' '.join(regex_date(key).split('_'))} was successfully deleted!"
+        return translator(answer)
+
+
+    elif key == "Notifications_button":
+        answer = "Notification settings and data"
+        return translator(answer)
+
     if key == 'Date settings':
         answer = 'Select the desired settings'
         return translator(answer)
@@ -68,11 +129,27 @@ def keyboard_translator(key):
     elif key == 'Search':
         answer = 'Choose a search method'
         return translator(answer)
-    elif key == 'Search by current date':
+
+    elif key == 'Search by current date_button':
         answer = "What\'s next?"
         return translator(answer)
+
+    elif (key == 'Search by the specified date_button') or \
+         (key == 'Try again_search_button'):
+        answer = 'Enter the month and date in a format that is convenient for you'
+        return translator(answer)
+
+    elif key == "Back to menu_button":
+        answer = "{}, what do you want this time?".\
+            format(get_random_text("greeting"))
+        return translator(answer)
+    
+    elif key == "Stop_button":
+        answer = "Okay, if you need me, just write something, {}!".\
+            format(get_random_text('farewell'))
+        return translator(answer)
     else:
-        return None
+        return f'{keyboard_translator.__name__} --> ERROR VALUE: {key}'
 
 
 # TODO:
@@ -80,9 +157,7 @@ def keyboard_translator(key):
 #  2) добавить кнопку возращения в InlineKeyboard;
 #  3) добавить кнопку пользовательского ввода даты и надписи к ней;
 #  4) изменить архитектуру запросов в более удобную и абстрактную
-
 def makeKeyboard(text=None, past_request=None, message=None, finish=False):
-
     """
     Построение кастомной клавиатуры
     :param past_request: главный ключ словаря кнопок, в основном используется если > 1 ключа
@@ -92,8 +167,6 @@ def makeKeyboard(text=None, past_request=None, message=None, finish=False):
     """
     global LANGUAGE
     markup = types.InlineKeyboardMarkup()
-
-
 
     def animation_bar(message):
         # если функция вызвана не из "threading_load"(run), то исключение
@@ -120,7 +193,6 @@ def makeKeyboard(text=None, past_request=None, message=None, finish=False):
                                       text=clock)
                 time.sleep(0.1)
 
-
     def threading_load(thread_func, main_func, **kwargs):
 
             global OVER
@@ -137,55 +209,87 @@ def makeKeyboard(text=None, past_request=None, message=None, finish=False):
             OVER = eval(main_func)
             th.join()
 
+    def process_date_step(message, finish=False, past_message=None):
+        if (past_message == 'Search by the specified date_button') or \
+           (past_message == "Add first date!_button"):
+                global try_again_request
+                try_again_request = past_message
 
-    def process_date_step(message):
-        format_date = regex_date(message.text)
-        bot.send_message(chat_id=CHAT_ID,
-                         text=get_holiday(format_date)
-                         )
-        answer = "What\'s next?"
-        bot.send_message(chat_id=CHAT_ID,
-                         text=translator(answer),
-                         reply_markup=makeKeyboard(finish=True),
-                         parse_mode='HTML')
+        if finish:
+            answer = "{}, what do you want now?".\
+                format(get_random_text('greeting'))
+            bot.send_message(text=translator(answer),
+                             chat_id=CHAT_ID,
+                             reply_markup=makeKeyboard())
+        else:
+            format_date = regex_date(message.text)
+            bot.send_message(chat_id=CHAT_ID,
+                             text=get_holiday(format_date)
+                             )
+            answer = "What\'s next?"
+            bot.send_message(chat_id=CHAT_ID,
+                             text=translator(answer),
+                             reply_markup=makeKeyboard(text=try_again_request,
+                                                       finish=True),
+                             parse_mode='HTML')
+
+    def adding_name(message, date=None, edit_name=False):
+        input_name = message.text
+        if edit_name:
+            USER_DATES[OLD_KEY] = input_name
+            answer = f'The name "{OLD_NAME}" was successfully changed to {input_name}!'
+            return bot.send_message(text=translator(answer),
+                                    chat_id=CHAT_ID,
+                                    reply_markup=makeKeyboard(finish=True))
+
+        USER_DATES[date] = input_name
+        answer = "Date successfully added, what's next"
+        return bot.send_message(text=translator(answer),
+                                chat_id=CHAT_ID,
+                                reply_markup=makeKeyboard(finish=True))
+
+    def adding_dates(message, edit_date=False):
+        input_date = regex_date(message.text)
+        if type(input_date) == dict:
+            process_date_step(message=message,
+                            past_message=text)
+
+
+        else:
+            input_date = " ".join(input_date.split('_'))
+            save_date = regex_date(input_date, savemod=True)
+            if edit_date:
+                USER_DATES[save_date] = USER_DATES.pop(OLD_KEY)
+                answer = f"The value of {' '.join(regex_date(OLD_KEY).split('_'))} " \
+                         f"was successfully renamed to {input_date}!"
+                return bot.send_message(text=translator(answer),
+                                        chat_id=CHAT_ID,
+                                        reply_markup=makeKeyboard(finish=True))
+
+            answer = "Great, now enter name " \
+                     "of the holiday for {}".format(input_date)
+            msg = bot.send_message(text=translator(answer),
+                                   chat_id=CHAT_ID)
+            args = [input_date]
+            bot.register_next_step_handler(msg, adding_name, *args)
+
+
+
 
 
 
     if finish:
-        def markup_finish():
-            """
-            Настройка заверщаюего меню
-            :return: InlineKeyBoard (встроенную в сообщение кастомную клавиатуру)
-            """
-            for v in markup_finish_list:
-                markup.add(types.InlineKeyboardButton(text=translator(v),
-                                                      callback_data=v + '_button'))
-            return markup
+        for v in markup_finish_list:
+            markup.add(types.InlineKeyboardButton(text=translator(v),
+                                                  callback_data=v + '_button'))
+        if text == "Search by the specified date_button":
+            markup.add(types.InlineKeyboardButton(text=translator('Try again'),
+                                                  callback_data='Try again_search_button'))
+        elif text == "Add first date!_button":
+            markup.add(types.InlineKeyboardButton(text=translator('Try again'),
+                                                  callback_data='Try again_add_button'))
 
-        if text == 'Back to menu_button':
-            answer = "I\'m coming back..."
-            # бот отправляет ответ-ожидание чтобы вернутся в главное меню
-            bot.send_message(chat_id=CHAT_ID,
-                             text=translator(answer))
-            time.sleep(2)
-            # бот удаляет ответ-ожидание и вместо него отправляет главное меню
-            bot.delete_message(chat_id=CHAT_ID,
-                               message_id=text.message_id + 1,  # т.к. message_id уже удаленно,
-                               # то нужно добавить к id значение, равно кол-ву сообщенией,
-                               # отправленных после удаления
-                               )
-            # возврат в главное меню
-            answer = "Choose the desired setting"
-            bot.send_message(chat_id=CHAT_ID, text=answer,
-                             reply_markup=makeKeyboard(),
-                             parse_mode='HTML')
-
-        elif text == 'Finish_button':
-            answer = 'Just send any symbol or command so that I can contact you again!'
-
-        else:
-            return markup_finish()
-
+        return markup
 
     # если опц. агрумента нет, то включается главное меню
     if (text in buttonsList.keys() or (not text) or text == "Back to menu_button"):
@@ -206,6 +310,79 @@ def makeKeyboard(text=None, past_request=None, message=None, finish=False):
 
     markup.add(types.InlineKeyboardButton(text=translator('↩ Back ↩'),
                                           callback_data='back'))
+
+
+
+    if text == "Profile":
+        for v in buttonsList[past_request][text]:
+            markup.add(types.InlineKeyboardButton(text=v,
+                                                  callback_data=v + '_button'))
+        return markup
+
+    elif text == "My dates_button":
+        if USER_DATES:
+            custom_date_buttons = ['Add', 'Edit', 'Delete']
+            for v in custom_date_buttons:
+                markup.add(types.InlineKeyboardButton(text=translator(v),
+                                                      callback_data=v+'_button'))
+            return markup
+
+        else:
+            custom_date_buttons = ['Add first date!']
+            for v in custom_date_buttons:
+                markup.add(types.InlineKeyboardButton(text=translator(v),
+                                                      callback_data=v+'_button'))
+            return markup
+
+    elif (text == "Add first date!_button") or \
+         (text == 'Try again_add_button') or (text == "Add_button"):
+            bot.register_next_step_handler(message, adding_dates)
+
+    elif text == "Edit_button":
+        for key in USER_DATES:
+            markup.add(types.InlineKeyboardButton(text="{} - {}"\
+                                                  .format(" ".join(regex_date(key).split("_")),
+                                                          USER_DATES[key]),
+                                                  callback_data=key+'_button'))
+        return markup
+
+    elif (text.split("_")[0] in USER_DATES.keys()) and ("edit" in text):
+        key = text.split("_")[0]
+        global OLD_KEY, OLD_NAME
+        OLD_KEY, OLD_NAME = key, USER_DATES[key]
+        edit_button_list = ['Date', 'Name']
+        for v in edit_button_list:
+            markup.add(types.InlineKeyboardButton(text=v,
+                                                  callback_data=v + '_edit_button'))
+        return markup
+
+    elif text == 'Date_edit_button':
+        args = [True]
+        bot.register_next_step_handler(message, adding_dates, *args)
+
+    elif text == "Name_edit_button":
+        args = [True, OLD_KEY]
+        return bot.register_next_step_handler(message, adding_name, *args)
+
+    elif text == "Delete_button":
+        for key in USER_DATES:
+            markup.add(types.InlineKeyboardButton(text="{} - {}"\
+                                                  .format(" ".join(regex_date(key).split("_")),
+                                                          USER_DATES[key]),
+                                                  callback_data=key+'_delete_button'))
+        return markup
+
+    elif (text.split("_")[0] in USER_DATES.keys()) and ("delete" in text):
+        key = text.split("_")[0]
+        del USER_DATES[key]
+        return makeKeyboard(finish=True)
+
+
+
+    elif text == "Notifications_button":
+        pass
+
+
 
     if text == 'Language':
         for v in buttonsList[past_request][text]:
@@ -249,7 +426,6 @@ def makeKeyboard(text=None, past_request=None, message=None, finish=False):
         pass
 
 
-
     if text == 'Search':
         for v in buttonsList[past_request][text]:
             markup.add(types.InlineKeyboardButton(text=translator(v) if LANGUAGE == 'Русский' else v,
@@ -257,7 +433,6 @@ def makeKeyboard(text=None, past_request=None, message=None, finish=False):
         return markup
 
     elif text == 'Search by current date_button':
-        # answer = 'The request is being executed...'
         kwargs = {'animation_bar': message, "send_message":
                                             {'chat_id': CHAT_ID,
                                              'text': "translator(get_holiday(LANGUAGE)"}}
@@ -265,16 +440,20 @@ def makeKeyboard(text=None, past_request=None, message=None, finish=False):
                                       "                 text=get_holiday())",
                        **kwargs)
 
-        answer = "What\'s next?"
-        bot.send_message(chat_id=CHAT_ID,
-                         text=translator(answer),
-                         reply_markup=makeKeyboard(finish=True))
+        return makeKeyboard(finish=True)
 
-    elif text == 'Search by the specified date_button':
-        answer = 'Enter the month and date in a format that is convenient for you'
-        bot.send_message(chat_id=CHAT_ID,
-                         text=translator(answer))
-        bot.register_next_step_handler(text, process_date_step)
+    elif (text == 'Search by the specified date_button') or \
+         (text == 'Try again_search_button'):
+        args = [False, text]
+        bot.register_next_step_handler(message, process_date_step, *args)
+
+
+
+    if text == "Stop_button":
+        args = [True]
+        bot.register_next_step_handler(message, process_date_step, *args)
+
+
 
 
 
@@ -296,34 +475,6 @@ def handle_command_adminwindow(message):
 
 
 
-# функция для ответа на нажатие кнопок навигации
-@bot.message_handler()
-def handle_message_from_callback(message, reply_markup_text=None, reply_markup_req=None):
-    finish_trigger_list = [  # кнопки, после которых следует завершающее меню
-        'Current date', 'Change the date','Русский',
-        'Inglish','Search by current date', 'Search by the specified date'
-    ]
-    answer = reply_markup_text.split('_')[0]
-    if answer not in finish_trigger_list:
-        if keyboard_translator(reply_markup_text):
-            bot.send_message(chat_id=CHAT_ID,
-                             text=keyboard_translator(reply_markup_text),
-                             reply_markup=makeKeyboard(text=reply_markup_text,
-                                                       past_request=reply_markup_req,
-                                                       message=message),
-                             parse_mode='HTML')
-
-        else:
-            bot.send_message(chat_id=CHAT_ID,
-                             text=keyboard_translator(answer),
-                             reply_markup=makeKeyboard(text=reply_markup_text,
-                                                       past_request=reply_markup_req,
-                                                       message=message),
-                             parse_mode='HTML')
-    else:   # если ответ есть в листе завершающих кнопок, то включается завершающее меню
-        makeKeyboard(text=reply_markup_text, message=message)
-
-
 def get_back(call=None, back=False):
     global back_key
     if not back:
@@ -341,7 +492,6 @@ def get_back(call=None, back=False):
         return back_key
 
     else:
-        print('возращаюсь по ключю', back_key)
         answer = "What do you want to do now"
         bot.delete_message(chat_id=CHAT_ID,
                            message_id=call.message.id)
@@ -355,10 +505,13 @@ def get_back(call=None, back=False):
 def handle_query(call):
     try:
         if type(buttonsList[call.data]) == dict:
+            past_request = call.data
             answer = key_from_dict(buttonsList[call.data])
         else:
+            past_request = call.data
             answer = buttonsList[call.data]
     except KeyError:
+            past_request = None
             answer = call.data
 
     if call.data == 'back':
@@ -368,8 +521,12 @@ def handle_query(call):
         bot.delete_message(chat_id=CHAT_ID,
                            message_id=call.message.message_id,
                            )
-        handle_message_from_callback(call.message, reply_markup_text=answer,
-                                     reply_markup_req=call.data)
+        get_back(call=call)
+        return bot.send_message(text=keyboard_translator(answer),
+                                chat_id=CHAT_ID,
+                                reply_markup=makeKeyboard(text=answer,
+                                                          past_request=past_request,
+                                                          message=call.message))
 
 
 def language_date():

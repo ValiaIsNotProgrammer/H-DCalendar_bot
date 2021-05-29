@@ -5,7 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from date_formating import regex_date
-from get_emoji import get_emoji
+from utilities import get_emoji
 
 
 def get_html(url):
