@@ -36,11 +36,12 @@ def wikipedia(soup):
         """
         Так как сайт не имеет определенной иерархии тэгов и их атрибутов,
         то функция итерируется по одноуровневым тэгам в глобальном списке тэгов по срезу [(Id+1),:]
-        :param next_iter_list: обьект глобального листа
+        :param next_iter_list: обьект глобального листа тэгов
         :return: значения под нужный заголовок и форматирует их
         """
 
         head_values = []
+        # текст и словарь для подзаголовков
         sub_head = ""
         sub_dict = {}
 
@@ -50,7 +51,7 @@ def wikipedia(soup):
 
             if sub_regex:
                 sub_head = tag.text
-            elif sub_head:  #
+            elif sub_head:
                 if main_regex:
                     sub_dict[sub_head] = tag.text
                     sub_head = None
@@ -71,23 +72,24 @@ def wikipedia(soup):
 
         def iter_dict_v1(values_list, split_list, break_point_sep):
             """
-            Для итерированию по str разделенной определенным разделителем
+            Для итерированию по обьекту str разделенным определенным разделителем
             :param values_list: главный, глобальный итерируемый обьект
             :param split_list: обьект, который разделили на определенный разделитель
             :param break_point_sep: точка останова
             :return: кортеж из форматированного текста и список пройденных значений,
-            который нужен чтобы избежать повторений этих значений и сразу из пропустить
+            который нужен чтобы избежать повторений этих значений и сразу их пропустить
             """
 
             text = ""
-            values_head = []
+            values_head = []  # список пройденных значений
             head_val = split_list[0].strip()
             origin_value = [v for v in values_list if head_val in v][0]
-            id = values_list.index(origin_value)
+            Id = values_list.index(origin_value)  # получаем id, который начинает итерацию сразу после заголовка
 
             text += get_emoji(head_val) + ":\n\t  "
             try:
-                for v in values_list[(id + 1):]:
+                for v in values_list[(Id + 1):]:
+                    #  если доходим до строчки с точкой останова, то завершаем цикл
                     if len(v.split(break_point_sep)) > 1:
                         text = text[:-1]  # убираем два лишних пробела в конченой строке
                         break
@@ -106,6 +108,7 @@ def wikipedia(soup):
             """
             text = ""
             for k, v in sub_dict.items():
+                # фильтруем подзаголовк и его значения от всех скобок
                 head = get_emoji(re.sub("[(\[].*?[)\]]", '', k).strip())
                 head_values = re.sub("[(\[].*?[)\]]", '', v).strip().split('\n')
                 text += head + ":\n\t\t" + "\n\t\t".join(head_values)
@@ -114,11 +117,12 @@ def wikipedia(soup):
 
         text = ""
         passed_values = []  # значения в тэгах, которые уже были
+        # фильтруем сырую строку и для уверенности заменяем необычное тире на дефолтное
         raw = raw_row[0].replace(u'\xa0', u' ').strip().replace('—', '-')
-        values = re.sub("[(\[].*?[)\]]", '', raw).split("\n")
+        values = re.sub("[(\[].*?[)\]]", '', raw).split("\n")  # фильтруем от скобок и разделяем по новой строке
 
         for id, v in enumerate(values):
-            # TODO: сделать обработку только для значений, исключая аргументы
+            # TODO: сделать обработку только для значений, исключая ключи
             #  (сделать проверку по кол-ву значений после ключа (разделителя))
             dash_splt_val = v.split('-')
             coln_splt_val = v.split(':')
@@ -157,10 +161,9 @@ def wikipedia(soup):
     for Id, child in enumerate(next_silbings_list):
         if child:
             if child.name:
-                name = child.name
                 content = child.text.strip()
                 try:
-                    if child.name == "h3":
+                    if child.name == "h3":  # тэг заголовка
                         head = get_emoji([h for h in heads if h in content][0])  # проверка и фильтрация заголовка
                         holiday_text += head + "\n\t" + get_head_values(next_silbings_list[(Id + 1):])
                     # тэг/текст, после которого идут уже ненужные значения

@@ -1,8 +1,8 @@
 import re
-import requests
-from bs4 import BeautifulSoup
-from translate import Translator
 import random
+
+from bs4 import BeautifulSoup
+
 
 def get_emoji(text):
 
@@ -52,16 +52,17 @@ def get_random_text(part):
     """
     if part == 'greeting':
         list_of_greeting = ["categorically welcome", "hello", "welcome", "welcome back",
-                         "good to see you again", "you again", "and again hello", "hey",
-                         "how are you", "aloha", "how are you doing", "how are things going",
-                         "how are you getting on", "howdy", "hiya", "g'day", "oh, you here",
+                            "good to see you again", "you again", "and again hello", "hey",
+                            "how are you", "aloha", "how are you doing", "how are things going",
+                            "how are you getting on", "howdy", "hiya", "g'day", "oh, you here",
+                            "hello there",
                             ]
         return random.choice(list_of_greeting).capitalize()
     elif part == 'farewell':
         list_of_farewell = ["goodbye", "see you later", "bye", "all the best",
                             "see you soon", "aloha", "happy holidays", "good luck",
                             "have a nice day", "so I don't want to say goodbye",
-                            'time to say "goodbye"', "aloha", "bye bye"]
+                            'time to say "goodbye"', "aloha", "bye bye",]
         return random.choice(list_of_farewell)
 
 if __name__ == '__main__':
