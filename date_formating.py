@@ -91,8 +91,12 @@ def regex_date(raw, lang='Русский', savemod=False):
 
     if ( raw[0].isdigit() & raw[1].isdigit() ):
         raw_row = '/'.join(raw)
-        raw_date = datetime.strptime(raw_row, '%d/%m').ctime().split()
-        date = "_".join(list(language_date(raw_date[1:3])))
+        try:
+            raw_date = datetime.strptime(raw_row, '%d/%m').ctime().split()
+            date = "_".join(list(language_date(raw_date[1:3])))
+        except ValueError:
+            errors_dict['error'] = 'Uncorrected format'
+            return errors_dict
         if savemod:
             raw_date = re.findall("-(\d{2})", str(datetime.strptime(raw_row, '%d/%m')))
             date = " ".join((raw_date[1], raw_date[0]))
