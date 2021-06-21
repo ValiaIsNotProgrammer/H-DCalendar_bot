@@ -4,7 +4,7 @@ from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
 
-from date_formating import regex_date
+from utilities.date_formating import regex_date
 from utilities import get_emoji
 
 

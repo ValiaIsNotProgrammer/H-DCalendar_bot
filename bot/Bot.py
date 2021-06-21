@@ -3,9 +3,9 @@ import os
 import time
 import copy
 import inspect
-import log_app
+from loggs import log_app
 import itertools
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import telebot
 import threading
@@ -13,10 +13,11 @@ from telebot import types
 from threading import Thread
 from googletrans import Translator
 
-from parser import get_holiday  # функция, парсиющая данные в зависимости от даты
-from date_formating import regex_date  # функция, определяющая дату, форматируя ее в нужный для парсера формат
-from utilities import get_random_text  # функция, возращаюшая случайное значение из наборов выбранных наборов паттернов
-from database import insert_into, get_user_data, is_query_username_bd  # функции для взаимодействия с базой данных
+from utilities.parser import get_holiday  # функция, парсиющая данные в зависимости от даты
+from utilities.utilities import regex_date  # функция, определяющая дату, форматируя ее в нужный для парсера формат
+from utilities.utilities import get_random_text  # функция, возращаюшая случайное значение из наборов выбранных наборов паттернов
+from db.database import insert_into, get_user_data, is_query_username_bd  # функции для взаимодействия с базой данных
+
 # TODO: 1) настроить язык - добавить просто готовый перевод;
 #       2) настроить логи;
 #       3) определиться с кнопками date settings;
@@ -38,22 +39,8 @@ USER_DATA = {"user_id": 0,  # primary_key
              'remember_later': 1}
 
 # кнопки для навигации по боту
-# TODO:
-#  1) добавить все кнопки в buttonsList, для правильного функционирования кнопки back;
-buttonsList = {
-    "profile_key":
-        {"Profile":
-             ["My dates", "Notifications",]},
-    "settings_date_keu":
-        {"Date settings":
-             ['Set the current date', 'Change the date']},
-    "language_key":
-        {'Language':
-             ['Русский', 'English']},
-    "search_key":
-        {"Search":
-             ['Search by current date', 'Search by the specified date']},
-}  # многоключевой обьект dict
+
+
 
 markup_finish_list = ["Back to menu", "Stop"]
 
@@ -661,7 +648,7 @@ def makeKeyboard(text=None, past_request=None, message=None, finish=False):
 ##################################################################################################
 
 @bot.message_handler(commands=['start'])
-def handle_command_adminwindow(message: telebot.types.Message):
+def handle_command_adminwindow(message: telebot.types.Message) -> telebot.types.Message:
     logger.info(f"The user {message.chat.username} started the bot")
 
     global CHAT_ID
@@ -680,7 +667,7 @@ def handle_command_adminwindow(message: telebot.types.Message):
     answer = "Welcome! This is the main menu where you can view your profile, " \
              "configure notifications, set the desired dates, " \
              "or simply use the date search to find out what holiday it is today"
-    bot.send_message(chat_id=CHAT_ID,
+    return bot.send_message(chat_id=CHAT_ID,
                      text=translator(answer),
                      reply_markup=makeKeyboard(),
                      parse_mode='HTML')
@@ -711,7 +698,8 @@ def get_back(call=None, back=False):
                                 reply_markup=makeKeyboard(text=back_key))
 
 @bot.callback_query_handler(func=lambda call: True)
-def handle_query(call: telebot.types.CallbackQuery):
+def handle_query(call: telebot.types.CallbackQuery) -> telebot.types.Message:
+
     try:
         if type(buttonsList[call.data]) == dict:
             past_request = call.data
